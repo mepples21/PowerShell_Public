@@ -11,8 +11,6 @@
                                   Export ADFS certificate to PFX
                                   Standardize write-host colors
                                   Test SQL backend options
-                                  Fix certificate installation check function
-                                  Add functionality to update SNI settings if 'netsh http' binding already exists for 0.0.0.0 using an old certificate
     Author(s)    				: Michael Epping (mepping@concurrency.com)
     Disclaimer   				: You running this script means you won't blame me if this breaks your stuff. This script is provided AS IS
 								  without warranty of any kind. I disclaim all implied warranties including, without limitation, any implied
@@ -59,7 +57,7 @@
             Write-Host "3: Press '3' to configure a server as a Web Application Proxy (ADFS Proxy)."
             Write-Host "4: Press '4' to import a certificate."
             Write-Host "5: Press '5' to join a domain."
-            Write-Host "6: Press '6' to reboot a server."
+            Write-Host "6: Press '6' to reboot this server."
             Write-Host "7: Press '7' to install Azure AD PowerShell tools."
             Write-Host "8: Press '8' to convert a domain to federated."
             Write-Host "9: Press '9' to convert a domain to standard."
@@ -89,6 +87,9 @@
             Write-Host "13: Press '13' to remove the SNI configuration after a new ADFS cert is installed."
             Write-Host "14: Press '14' to remove the SNI configuration after a new Proxy cert is installed."
             Write-Host "15: Press '15' to add an inbound port 80 Windows Firewall rule."
+            Write-Host "16: Press '16' to add SNI support for an alternate URL on an ADFS server."
+            Write-Host "17: Press '17' to add SNI support for an alternate URL on a Proxy server."
+            Write-Host "18: Press '18' to publish an application through a proxy using PassThrough authentication."
             Write-Host "Q: Press 'Q' to quit and return to the main menu."
         }
 
@@ -517,7 +518,7 @@
             function Configure-ProxySNI {
                 $ProxyCertificate = Get-WebApplicationProxySslCertificate | where {$_.PortNumber -eq "443"} | select -Last 1 -Property CertificateHash
                 $ProxyCertHash = $ProxyCertificate.CertificateHash.ToString()
-                netsh http add sslcert ipport=0.0.0.0:443 certhas=$ProxyCertHash appid='{f955c070-e044-456c-ac00-e9e4275b3f04}'
+                netsh http add sslcert ipport=0.0.0.0:443 certhash=$ProxyCertHash appid='{f955c070-e044-456c-ac00-e9e4275b3f04}'
             }
             
         ## Disable SNI Settings for ADFS
@@ -532,6 +533,37 @@
                 $ProxyCertificate = Get-WebApplicationProxySslCertificate | where {$_.PortNumber -eq "443"} | select -Last 1 -Property CertificateHash
                 $ProxyCertHash = $ProxyCertificate.CertificateHash.ToString()
                 netsh http delete sslcert ipport=0.0.0.0:443
+            }
+            
+        ## Add SNI Configuration for Additional Health Checking URL on ADFS Server
+            function Add-SNIConfigurationForURLOnADFS {
+                Write-Host "Please enter the hostname you would like to configure SNI support for. This name must be on the certificate:" -ForegroundColor Red -BackgroundColor Green
+                $SNIHostname = read-host
+                $Certificate = Get-AdfsSslCertificate | where {$_.PortnUmber -eq "443"} | select -Last 1 -Property CertificateHash
+                $CertHash = $Certificate.CertificateHash.ToString()
+                netsh http add sslcert hostnameport="$SNIHostname":443 certhash=$CertHash appid='{f955c070-e044-456c-ac00-e9e4275b3f04}' certstorename=MY sslctlstorename=AdfsTrustedDevices clientcertnegotiation=disable
+            }
+            
+        ## Add SNI Configuration for Additional Health Checking URL on ADFS Proxy
+            function Add-SNIConfigurationForURLOnProxy {
+                write-host "Please enter the hostname you would like to configure SNI support for. This name must be on the certificate:" -ForegroundColor Red -BackgroundColor Green
+                $SNIHostname = read-host
+                $Certificate = Get-WebApplicationProxySslCertificate | where {$_.PortNumber -eq "443"} | select -Last 1 -Property CertificateHash
+                $CertHash = $Certificate.CertificateHash.ToString()
+                netsh http add sslcert hostnameport="$SNIHostname":443 certhash=$CertHash appid='{f955c070-e044-456c-ac00-e9e4275b3f04}' certstorename=MY
+            }
+            
+        ## Add Web Application Proxy Publishing Rule Using PassThrough Authentication
+            function Add-WAPRule {
+                write-host "Please enter the URL you would like to publish (e.g., https://app.domain.com/apppath/). This URL must end in a '/':"
+                $appurl = read-host
+                $FarmName = ($appurl).Split('/')[2]
+                write-host "Please enter the internal IP or VIP of $FarmName"
+                $HOSTSIP = read-host
+                Add-HOSTFileContent -IPAddress $HOSTSIP -computer $FarmName
+                write-host "Please enter the thumbprint of the certificate to be used for publishing $FarmName"
+                $certthumbprint = read-host
+                Add-WebApplicationProxyApplication -Name "$FarmName" -BackendServerUrl "$appurl" -ExternalUrl "$appurl" -ExternalPreauthentication "PassThrough" -ExternalCertificateThumbprint "$certthumbprint"
             }
             
 #### Begin Script Section ####
@@ -767,6 +799,26 @@
                                     'The health check page is http://servername/adfs/probe'
                                     Get-ContinueAnswer
                                     New-NetFirewallRule -Name "Allow Port 80 Inbound" -DisplayName "Allow Port 80 Inbound" -Enabled True -Profile Any -Action Allow -Direction Inbound -LocalPort 80 -Protocol TCP
+                                } '16' {
+                                    cls
+                                    'You chose option #16'
+                                    'Option #16 adds an additional URL to the SNI configuration on an ADFS server. This is usually to support health checking on port 443 for Azure Traffic Manager or a similar service.'
+                                    Get-ContinueAnswer
+                                    Get-ADFSInstallStatusForSNI
+                                    Add-SNIConfigurationForURLOnADFS
+                                } '17' {
+                                    cls
+                                    'You chose option #17'
+                                    'Option #17 adds an additional URL to the SNI configuration on a Proxy server. This is usually to support health checking on port 443 for Azure Traffic Manager or a similar service.'
+                                    Get-ContinueAnswer
+                                    Get-ProxyInstallStatusForSNI
+                                    Add-SNIConfigurationForURLOnProxy
+                                } '18' {
+                                    cls
+                                    'You chose option #18'
+                                    'Option #18 allows you to publish additional URLs through the Web Application Proxies using PassThrough Authentication.'
+                                    Get-ContinueAnswer
+                                    Add-WAPRule
                                 } 'q' {
                                     $input = $null
                                     break Menu
