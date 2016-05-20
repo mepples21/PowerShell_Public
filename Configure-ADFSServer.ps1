@@ -6,16 +6,35 @@
 	Version 2.0: Changing the way options work in the script instead of using parameter sets.
 
 .NOTES
-    Version      	   	    	: 2.1
+    Version      	   	    	: 2.2
+    Change List                 : 2.2 Changes
+                                    - Added new functionality
+                                        - Remove HOSTS file entries to avoid having multiple identical lines
+                                        - Remove old Proxy certificates when re-running Option #3
+                                    - Bug Fixes
+                                        - Certificate error thrown during Proxy configuration
+                                        - CTL Store Configuration missing from SNI functions for ADFS servers
+                                        - Other miscellaneous bug fixes
+                                  2.1 Changes
+                                    - New Functionality
+                                        - SNI configuration
+                                        - Added options for SQL configuration
+                                        - ADFS Customization Options
+                                        - Web Application Proxy Applicaiton creation
+                                    - Small bug fixes
+                                  2.0 Changes
+                                    - Changed the script to use a menu system rather than parameter sets
+                                    - Added much more functionality
+                                        - SNI configuration
+                                        - Added options for SQL configuration
+                                    - Fixed many, MANY bugs
+                                  1.0 Changes
+                                    - Built the basic script functions and tested them
     Wish list		        	: Better error handling
                                   Export ADFS certificate to PFX
                                   Standardize write-host colors
                                   Test SQL backend options
-                                  Fix issue with configuring proxy after new cert is installed
-                                  Run check to make sure ADFS service account is a local admin
-                                  Prevent creation of duplicate lines in HOSTS file
                                   Fully change certificates
-                                  Retry Proxy configuration if it fails (usually do to replication speeds and/or timeouts)
     Author(s)    				: Michael Epping (mepping@concurrency.com)
     Disclaimer   				: You running this script means you won't blame me if this breaks your stuff. This script is provided AS IS
 								  without warranty of any kind. I disclaim all implied warranties including, without limitation, any implied
@@ -166,7 +185,7 @@
                 $reboot = $true;
             }
                         
-        ## Hosts File Function
+        ## Add Hosts File Function
             function add-hostfilecontent {            
                 param (            
                     [parameter(Mandatory=$true)]            
@@ -183,6 +202,27 @@
                 $data = Get-Content -Path $file             
                 $data += "$IPAddress  $computer"            
                 Set-Content -Value $data -Path $file -Force -Encoding ASCII             
+            }
+            
+        ## Remove Hosts File Function
+            function remove-hostfilecontent ([string]$NameToRemove) {
+                $file = "C:\Windows\System32\drivers\etc\hosts"
+                $c = Get-Content $filename
+                $newLines = @()
+                
+                foreach ($line in $c) {
+                    $bits = [regex]::Split($line, "\t+")
+                    if ($bits.could -eq 2) {
+                        if ($bits[1] -ne $NameToRemove) {
+                            $newLines += $line
+                        }
+                    } else {
+                        $newLines += $line
+                    }
+                }
+                
+                # Write File
+                Clear-Content $
             }
 
         ## Install ADFS Certificate
@@ -300,6 +340,7 @@
                 }
                 Write-Host "Please enter the ADFS Service Account Credentials"
                 $ADFSServiceAccount = Get-Credential -Message "Please enter the ADFS Service Account credentials using the 'domain\username' format."
+                net localgroup administrators /add $ADFSServiceAccount.UserName.ToString()
                             
                 Install-AdfsFarm -CertificateThumbprint $CertThumbprint.Thumbprint -FederationServiceName $FarmName.ToString() -ServiceAccountCredential $ADFSServiceAccount -OverwriteConfiguration -Confirm:$false
             }
@@ -317,6 +358,7 @@
                 }
                 Write-Host "Please enter the ADFS Service Account Credentials"
                 $ADFSServiceAccount = Get-Credential -Message "Please enter the ADFS Service Account credentials using the 'domain\username' format."
+                net localgroup administrators /add $ADFSServiceAccount.UserName.ToString()
                 
                 Write-Host "Please enter the hostname of the SQL backend server." -ForegroundColor Red
                 $SQLHost = read-host
@@ -337,6 +379,7 @@
                 }
                 Write-Host "Please enter the ADFS Service Account Credentials"
                 $ADFSServiceAccount = Get-Credential -Message "Please enter the ADFS Service Account credentials using the 'domain\username' format."
+                net localgroup administrators /add $ADFSServiceAccount.UserName.ToString()
                 
                 Write-Host "Please enter the name of the primary ADFS server in the existing farm:" -BackgroundColor Green -ForegroundColor Red
                 $PrimaryADFSServer = Read-Host
@@ -357,6 +400,7 @@
                 }
                 Write-Host "Please enter the ADFS Service Account Credentials"
                 $ADFSServiceAccount = Get-Credential -Message "Please enter the ADFS Service Account credentials using the 'domain\username' format."
+                net localgroup administrators /add $ADFSServiceAccount.UserName.ToString()
                 
                 Write-Host "Please enter the name of the primary ADFS server in the existing farm:" -BackgroundColor Green -ForegroundColor Red
                 $PrimaryADFSServer = Read-Host
@@ -382,7 +426,7 @@
                 if ($ADFSModuleStatus -ne $null) {
                     Write-Host "Please enter the ADFS Service Account Credentials"
                     $ADFSServiceAccount = Get-Credential -Message "Please enter the ADFS Service Account credentials using the 'domain\username' format."
-                    Install-WebApplicationProxy -CertificateThumbprint $CertThumbprint -FederationServiceName $FarmName -FederationServiceTrustCredential $ADFSServiceAccount
+                    Install-WebApplicationProxy -CertificateThumbprint $CertThumbprint.Thumbprint -FederationServiceName $FarmName -FederationServiceTrustCredential $ADFSServiceAccount
                 } else {
                     Write-Host "The Web Application Proxy Module was not loaded. Please reboot the server and rerun this script" -BackgroundColor Green -ForegroundColor Red
                     Get-RebootAnswer
@@ -571,6 +615,194 @@
                 Add-WebApplicationProxyApplication -Name "$FarmName" -BackendServerUrl "$appurl" -ExternalUrl "$appurl" -ExternalPreauthentication "PassThrough" -ExternalCertificateThumbprint "$certthumbprint"
             }
             
+        ## Remove-Hostnames.ps1 Script From https://github.com/jeremy-jameson/Toolbox/blob/master/PowerShell/Remove-Hostnames.ps1
+            function Remove-Hostnames {
+                                param(
+                    [parameter(Mandatory = $true, ValueFromPipeline = $true)]
+                    [string[]] $Hostnames
+                )
+                begin
+                {
+                    Set-StrictMode -Version Latest
+                    $ErrorActionPreference = "Stop"
+                    function CreateHostsEntryObject(
+                        [string] $ipAddress,
+                        [string[]] $hostnames,
+                        <# [string] #> $comment) #HACK: never $null if type is specified
+                    {
+                        $hostsEntry = New-Object PSObject
+                        $hostsEntry | Add-Member NoteProperty -Name "IpAddress" `
+                            -Value $ipAddress
+                        [System.Collections.ArrayList] $hostnamesList =
+                            New-Object System.Collections.ArrayList
+                        $hostsEntry | Add-Member NoteProperty -Name "Hostnames" `
+                            -Value $hostnamesList
+                        If ($hostnames -ne $null)
+                        {
+                            $hostnames | foreach {
+                                $hostsEntry.Hostnames.Add($_) | Out-Null
+                            }
+                        }
+                        $hostsEntry | Add-Member NoteProperty -Name "Comment" -Value $comment
+                        return $hostsEntry
+                    }
+                    function ParseHostsEntry(
+                        [string] $line)
+                    {
+                        $hostsEntry = CreateHostsEntryObject
+                        Write-Debug "Parsing hosts entry: $line"
+                        If ($line.Contains("#") -eq $true)
+                        {
+                            If ($line -eq "#")
+                            {
+                                $hostsEntry.Comment = [string]::Empty
+                            }
+                            Else
+                            {
+                                $hostsEntry.Comment = $line.Substring($line.IndexOf("#") + 1)
+                            }
+                            $line = $line.Substring(0, $line.IndexOf("#"))
+                        }
+                        $line = $line.Trim()
+                        If ($line.Length -gt 0)
+                        {
+                            $hostsEntry.IpAddress = ($line -Split "\s+")[0]
+                            Write-Debug "Parsed address: $($hostsEntry.IpAddress)"
+                            [string[]] $parsedHostnames = $line.Substring(
+                                $hostsEntry.IpAddress.Length + 1).Trim() -Split "\s+"
+                            Write-Debug ("Parsed hostnames ($($parsedHostnames.Length)):" `
+                                + " $parsedHostnames")
+                            $parsedHostnames | foreach {
+                                $hostsEntry.Hostnames.Add($_) | Out-Null
+                            }
+                        }
+                        return $hostsEntry
+                    }
+                    function ParseHostsFile
+                    {
+                        $hostsEntries = New-Object System.Collections.ArrayList
+                        [string] $hostsFile = $env:WINDIR + "\System32\drivers\etc\hosts"
+                        If ((Test-Path $hostsFile) -eq $false)
+                        {
+                            Write-Verbose "Hosts file does not exist."
+                        }
+                        Else
+                        {
+                            [string[]] $hostsContent = Get-Content $hostsFile
+                            $hostsContent | foreach {
+                                $hostsEntry = ParseHostsEntry $_
+                                $hostsEntries.Add($hostsEntry) | Out-Null
+                            }
+                        }
+                        # HACK: Return an array (containing the ArrayList) to avoid issue with
+                        # PowerShell returning $null (when hosts file does not exist)
+                        return ,$hostsEntries
+                    }
+                    function UpdateHostsFile(
+                        $hostsEntries = $(Throw "Value cannot be null: hostsEntries"))
+                    {
+                        Write-Verbose "Updatings hosts file..."
+                        [string] $hostsFile = $env:WINDIR + "\System32\drivers\etc\hosts"
+                        $buffer = New-Object System.Text.StringBuilder
+                        $hostsEntries | foreach {
+                            If ([string]::IsNullOrEmpty($_.IpAddress) -eq $false)
+                            {
+                                $buffer.Append($_.IpAddress) | Out-Null
+                                $buffer.Append("`t") | Out-Null
+                            }
+                            If ($_.Hostnames -ne $null)
+                            {
+                                [bool] $firstHostname = $true
+                                $_.Hostnames | foreach {
+                                    If ($firstHostname -eq $false)
+                                    {
+                                        $buffer.Append(" ") | Out-Null
+                                    }
+                                    Else
+                                    {
+                                        $firstHostname = $false
+                                    }
+                                    $buffer.Append($_) | Out-Null
+                                }
+                            }
+                            If ($_.Comment -ne $null)
+                            {
+                                If ([string]::IsNullOrEmpty($_.IpAddress) -eq $false)
+                                {
+                                    $buffer.Append(" ") | Out-Null
+                                }
+                                $buffer.Append("#") | Out-Null
+                                $buffer.Append($_.Comment) | Out-Null
+                            }
+                            $buffer.Append([System.Environment]::NewLine) | Out-Null
+                        }
+                        [string] $hostsContent = $buffer.ToString()
+                        $hostsContent = $hostsContent.Trim()
+                        Set-Content -Path $hostsFile -Value $hostsContent -Force -Encoding ASCII
+                        Write-Verbose "Successfully updated hosts file."
+                    }
+                    [bool] $isInputFromPipeline =
+                        ($PSBoundParameters.ContainsKey("Hostnames") -eq $false)
+                    [int] $pendingUpdates = 0
+                    [Collections.ArrayList] $hostsEntries = ParseHostsFile
+                }
+                process
+                {
+                    If ($isInputFromPipeline -eq $true)
+                    {
+                        $items = $_
+                    }
+                    Else
+                    {
+                        $items = $Hostnames
+                    }
+                    $items | foreach {
+                        [string] $hostname = $_
+                        for ([int] $i = 0; $i -lt $hostsEntries.Count; $i++)
+                        {
+                            $hostsEntry = $hostsEntries[$i]
+                            Write-Debug "Hosts entry: $hostsEntry"
+                            If ($hostsEntry.Hostnames.Count -eq 0)
+                            {
+                                continue
+                            }
+                            for ([int] $j = 0; $j -lt $hostsEntry.Hostnames.Count; $j++)
+                            {
+                                [string] $parsedHostname = $hostsEntry.Hostnames[$j]
+                                Write-Debug ("Comparing specified hostname" `
+                                    + " ($hostname) to existing hostname" `
+                                    + " ($parsedHostname)...")
+                                If ([string]::Compare($hostname, $parsedHostname, $true) -eq 0)
+                                {
+                                    Write-Debug "Removing hostname ($hostname) from host entry ($hostsEntry)..."
+                                    $hostsEntry.Hostnames.RemoveAt($j)
+                                    $j--
+                                    $pendingUpdates++
+                                }
+                            }
+                            If ($hostsEntry.Hostnames.Count -eq 0)
+                            {
+                                Write-Debug ("Removing host entry (because it no longer specifies" `
+                                    + " any hostnames)...")
+                                $hostsEntries.RemoveAt($i)
+                                $i--
+                            }
+                        }
+                    }
+                }
+                end
+                {
+                    If ($pendingUpdates -eq 0)
+                    {
+                        Write-Verbose "No changes to the hosts file are necessary."
+                        return
+                    }
+                    Write-Verbose ("There are $pendingUpdates pending update(s) to the hosts" `
+                        + " file.")
+                    UpdateHostsFile $hostsEntries
+                }
+            }
+            
 #### Begin Script Section ####
 
     # Show Menu 
@@ -589,7 +821,7 @@
                         Get-ContinueAnswer
                         Write-Host "Please enter the name of the new ADFS farm to configure:" -BackgroundColor Green -ForegroundColor Red
                         $FarmName = Read-Host
-                        $CertThumbprint = $null
+                        Clear-Variable CertThumbprint
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Get-CertificateInstallation
                         Get-ADFSInstallStatus
@@ -601,7 +833,7 @@
                         Write-Host 'Option #2 joins this server to an existing ADFS Farm. You must have the ADFS service account credentials as well as a certificate for ADFS.' -ForegroundColor Red
                         Write-Host 'THIS OPTION WILL OVERWITE ANY EXISTING CONFIGURATION!' -BackgroundColor Red
                         Get-ContinueAnswer
-                        $CertThumbprint = $null
+                        Clear-Variable CertThumbprint
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Get-CertificateInstallation
                         Get-ADFSInstallStatus
@@ -616,11 +848,12 @@
                         $HOSTSIP = Read-Host
                         Write-Host "Please enter the name of the ADFS Farm (e.g. sso.domain.com):" -BackgroundColor Green -ForegroundColor Red
                         $FarmName = Read-Host
+                        Remove-Hostnames $FarmName
                         Add-HOSTFileContent -IPAddress $HOSTSIP -computer $FarmName
                         Get-CertificateInstallation
-                        $CertThumbprint = $null
+                        Clear-Variable CertThumbprint -ErrorAction SilentlyContinue
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
-                        dir cert:\localMachine\MY | where subject -like "cn-adfs proxytrust" | Remove-Item -Confirm:$false
+                        Get-ChildItem cert:\localMachine\MY | where {$_.Subject -like "CN=ADFS ProxyTrust*"} | Remove-Item -Confirm:$false
                         Install-ADFSProxy
                 } '4' {
                         cls
