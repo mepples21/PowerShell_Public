@@ -13,6 +13,9 @@
                                   Test SQL backend options
                                   Fix issue with configuring proxy after new cert is installed
                                   Run check to make sure ADFS service account is a local admin
+                                  Prevent creation of duplicate lines in HOSTS file
+                                  Fully change certificates
+                                  Retry Proxy configuration if it fails (usually do to replication speeds and/or timeouts)
     Author(s)    				: Michael Epping (mepping@concurrency.com)
     Disclaimer   				: You running this script means you won't blame me if this breaks your stuff. This script is provided AS IS
 								  without warranty of any kind. I disclaim all implied warranties including, without limitation, any implied
@@ -513,7 +516,7 @@
             function Configure-ADFSSNI {
                 $ADFSCertificate = Get-AdfsSslCertificate | where {$_.PortNumber -eq "443"} | select -Last 1 -Property CertificateHash
                 $ADFSCertHash = $ADFSCertificate.CertificateHash.ToString()
-                netsh http add sslcert ipport=0.0.0.0:443 certhash=$ADFSCertHash appid='{5d89a20c-beab-4389-9447-324788eb944a}'
+                netsh http add sslcert ipport=0.0.0.0:443 certhash=$ADFSCertHash appid='{5d89a20c-beab-4389-9447-324788eb944a}' sslctlstorename=AdfsTrustedDevices
             }
         
         ## Allow non-SNI Clients for ADFS Proxy
@@ -617,6 +620,7 @@
                         Get-CertificateInstallation
                         $CertThumbprint = $null
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
+                        dir cert:\localMachine\MY | where subject -like "cn-adfs proxytrust" | Remove-Item -Confirm:$false
                         Install-ADFSProxy
                 } '4' {
                         cls
@@ -839,4 +843,3 @@
             pause
         }
         until ($input -eq 'q')
-
