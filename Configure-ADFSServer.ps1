@@ -586,6 +586,7 @@
                         Get-ContinueAnswer
                         Write-Host "Please enter the name of the new ADFS farm to configure:" -BackgroundColor Green -ForegroundColor Red
                         $FarmName = Read-Host
+                        $CertThumbprint = $null
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Get-CertificateInstallation
                         Get-ADFSInstallStatus
@@ -597,6 +598,7 @@
                         Write-Host 'Option #2 joins this server to an existing ADFS Farm. You must have the ADFS service account credentials as well as a certificate for ADFS.' -ForegroundColor Red
                         Write-Host 'THIS OPTION WILL OVERWITE ANY EXISTING CONFIGURATION!' -BackgroundColor Red
                         Get-ContinueAnswer
+                        $CertThumbprint = $null
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Get-CertificateInstallation
                         Get-ADFSInstallStatus
@@ -613,6 +615,7 @@
                         $FarmName = Read-Host
                         Add-HOSTFileContent -IPAddress $HOSTSIP -computer $FarmName
                         Get-CertificateInstallation
+                        $CertThumbprint = $null
                         $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Install-ADFSProxy
                 } '4' {
