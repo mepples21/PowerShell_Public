@@ -12,6 +12,7 @@
                                   Standardize write-host colors
                                   Test SQL backend options
                                   Fix issue with configuring proxy after new cert is installed
+                                  Run check to make sure ADFS service account is a local admin
     Author(s)    				: Michael Epping (mepping@concurrency.com)
     Disclaimer   				: You running this script means you won't blame me if this breaks your stuff. This script is provided AS IS
 								  without warranty of any kind. I disclaim all implied warranties including, without limitation, any implied
@@ -612,6 +613,7 @@
                         $FarmName = Read-Host
                         Add-HOSTFileContent -IPAddress $HOSTSIP -computer $FarmName
                         Get-CertificateInstallation
+                        $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Install-ADFSProxy
                 } '4' {
                         cls
