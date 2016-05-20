@@ -11,6 +11,7 @@
                                   Export ADFS certificate to PFX
                                   Standardize write-host colors
                                   Test SQL backend options
+                                  Fix issue with configuring proxy after new cert is installed
     Author(s)    				: Michael Epping (mepping@concurrency.com)
     Disclaimer   				: You running this script means you won't blame me if this breaks your stuff. This script is provided AS IS
 								  without warranty of any kind. I disclaim all implied warranties including, without limitation, any implied
@@ -610,7 +611,6 @@
                         Write-Host "Please enter the name of the ADFS Farm (e.g. sso.domain.com):" -BackgroundColor Green -ForegroundColor Red
                         $FarmName = Read-Host
                         Add-HOSTFileContent -IPAddress $HOSTSIP -computer $FarmName
-                        $CertThumbprint = Get-ChildItem -Path Cert:\LocalMachine\My | where {$_.Subject -like "CN=$FarmName*"}
                         Get-CertificateInstallation
                         Install-ADFSProxy
                 } '4' {
