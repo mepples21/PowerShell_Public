@@ -3,7 +3,11 @@
     This script can configure the ADFS and ADFS Proxy server roles.
     
 .DESCRIPTION
-	Version 2.0: Changing the way options work in the script instead of using parameter sets.
+    This script is designed to assist with common Active Directory Federation Services and Web Application Proxy configuration tasks. This includes
+    the creation of new ADFS farms, joining servers to existing farms, and setting up new Web Application Proxies to connect to existing ADFS farms.
+    It can also help with basic tasks, like modifying http.sys settings to allow non-SNI clients to connect and importing certificates. Some
+    features are still experimental. Specifically, the ADFS configuration using SQL Server as a backend instead of WID is experimental and should
+    not be used in production at this time.
 
 .NOTES
     Version      	   	    	: 2.2
@@ -1040,7 +1044,7 @@
                                     'Option #15 adds an inbound firewall rule for port 80, which some Proxy servers may need for health checking.'
                                     'The health check page is http://servername/adfs/probe'
                                     Get-ContinueAnswer
-                                    New-NetFirewallRule -Name "Allow Port 80 Inbound" -DisplayName "Allow Port 80 Inbound" -Enabled True -Profile Any -Action Allow -Direction Inbound -LocalPort 80 -Protocol TCP
+                                    New-NetFirewallRule -DisplayName "AD FS HTTP Services (TCP-In)" -Group "AD FS" -Enabled True -Action Allow -Name "ADFSSrv-HTTP-In-TCP" -Profile Any -Direction Inbound -Protocol TCP -LocalPort 80
                                 } '16' {
                                     cls
                                     'You chose option #16'
