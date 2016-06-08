@@ -10,8 +10,10 @@
     not be used in production at this time.
 
 .NOTES
-    Version      	   	    	: 2.2
-    Change List                 : 2.2 Changes
+    Version      	   	    	: 2.3
+    Change List                 : 2.3 Changes
+                                    - Added an option to the submenu to configure integrated windows authentication support for Edge, Firefox, and Chrome on Windows.
+                                  2.2 Changes
                                     - Added new functionality
                                         - Remove HOSTS file entries to avoid having multiple identical lines
                                         - Remove old Proxy certificates when re-running Option #3
@@ -118,6 +120,7 @@
             Write-Host "16: Press '16' to add SNI support for an alternate URL on an ADFS server."
             Write-Host "17: Press '17' to add SNI support for an alternate URL on a Proxy server."
             Write-Host "18: Press '18' to publish an application through a proxy using PassThrough authentication."
+            Write-Host "19: Press '20' to add Windows Integrated Authentication Support for Chrome, Firefox, and Edge browsers."
             Write-Host "Q: Press 'Q' to quit and return to the main menu."
         }
 
@@ -806,6 +809,33 @@
                     UpdateHostsFile $hostsEntries
                 }
             }
+
+        ## Add Support for Edge, Firefox, and Chrome
+            function Configure-BrowserSupport {
+                Set-AdfsProperties -WIASupportedUserAgents @(
+                    'MSIE 6.0',
+                    'MSIE 7.0; Windows NT',
+                    'MSIE 8.0',
+                    'MSIE 9.0',
+                    'MSIE 10.0; Windows NT 6',
+                    'Windows NT 6.3; Trident/7.0',
+                    'Windows NT 6.3; Win64; x64; Trident/7.0',
+                    'Windows NT 6.3; WOW64; Trident/7.0',
+                    'Windows NT 6.2; Trident/7.0',
+                    'Windows NT 6.2; Win64; x64; Trident/7.0',
+                    'Windows NT 6.2; WOW64; Trident/7.0',
+                    'Windows NT 6.1; Trident/7.0',
+                    'Windows NT 6.1; Win64; x64; Trident/7.0',
+                    'Windows NT 6.1; WOW64; Trident/7.0',
+                    'MSIPC',
+                    'Windows Rights Management Client',
+                    
+                    'Windows NT 10.0; WOW64; Trident/7.0',
+                    'Edge/1',
+                    'Mozilla/5.0 (Windows NT'
+                )
+                Set-AdfsProperties -ExtendedProtectionTokenCheck None
+            }
             
 #### Begin Script Section ####
 
@@ -1065,6 +1095,13 @@
                                     'Option #18 allows you to publish additional URLs through the Web Application Proxies using PassThrough Authentication.'
                                     Get-ContinueAnswer
                                     Add-WAPRule
+                                } '19' {
+                                    cls
+                                    'You chose option #19'
+                                    'Option #19 allows you to add support for Windows Integrated Authentication in the Edge, Firefox, and Chrome Browsers.'
+                                    Get-ContinueAnswer
+                                    Get-ADFSInstallStatusForSubmenu
+                                    Configure-BrowserSupport
                                 } 'q' {
                                     $input = $null
                                     break Menu
