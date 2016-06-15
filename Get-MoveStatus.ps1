@@ -25,19 +25,12 @@ The original verison of this script was created by Jason Sherry (izzy@izzy.org) 
     Known Issues	: None yet, but I'm sure you'll find some!
 
 .EXAMPLE
-<Enter Text>
+.\Get-MoveStatus.ps1
 
 /#>
 
 ## Define Parameters
-	Param
-		(
-				[parameter(Mandatory=$false)]
-[string] $fakeparameter1,
 
-[parameter(Mandatory=$false)]
-[string] $fakeparameter2,
-)
 
 ## Define Functions
 
