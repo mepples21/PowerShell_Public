@@ -10,8 +10,10 @@
     not be used in production at this time.
 
 .NOTES
-    Version      	   	    	: 2.3
-    Change List                 : 2.3 Changes
+    Version      	   	    	: 2.4
+    Change List                 : 2.4 Changes
+                                    - Updated the firewall rule creation to use a function and to properly check if the rule already exists.
+                                  2.3 Changes
                                     - Added an option to the submenu to configure integrated windows authentication support for Edge, Firefox, and Chrome on Windows.
                                   2.2 Changes
                                     - Added new functionality
@@ -836,6 +838,22 @@
                 )
                 Set-AdfsProperties -ExtendedProtectionTokenCheck None
             }
+
+        ## Check for ADFS Firewall Rule and Create if Missing
+            function Configure-ADFSFirewallRule {
+                $Port80RuleExists = Get-NetFirewallRule -DisplayName "AD FS HTTP Services (TCP-In)"
+                if ($Port80RuleExists -ne "") {
+                    Continue
+                } else {
+                    New-NetFirewallRule -DisplayName "AD FS HTTP Services (TCP-In)" -Group "AD FS" -Enabled True -Action Allow -Name "ADFSSrv-HTTP-In-TCP" -Profile Any -Direction Inbound -Protocol TCP -LocalPort 80
+                }
+                $Port443RuleExists = Get-NetFirewallRule -DisplayName "AD FS HTTPS Services (TCP-In)"
+                if ($Port443RuleExists -ne "") {
+                    Continue
+                } else {
+                    New-NetFirewallRule -DisplayName "AD FS HTTPS Services (TCP-In)" -Group "AD FS" -Enabled True -Action Allow -Name "ADFSSrv-HTTPS-In-TCP" -Profile Any -Direction Inbound -Protocol TCP -LocalPort 443
+                }
+            }
             
 #### Begin Script Section ####
 
@@ -1074,7 +1092,7 @@
                                     'Option #15 adds an inbound firewall rule for port 80, which some Proxy servers may need for health checking.'
                                     'The health check page is http://servername/adfs/probe'
                                     Get-ContinueAnswer
-                                    New-NetFirewallRule -DisplayName "AD FS HTTP Services (TCP-In)" -Group "AD FS" -Enabled True -Action Allow -Name "ADFSSrv-HTTP-In-TCP" -Profile Any -Direction Inbound -Protocol TCP -LocalPort 80
+                                    Configure-ADFSFirewallRule
                                 } '16' {
                                     cls
                                     'You chose option #16'
