@@ -7,8 +7,8 @@ Windows Registry Editor Version 5.00
 @="https://069afcc4-8591-4dfa-83cd-cd906193f67d.rms.na.aadrm.com/_wmcs/Licensing"
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ExchangeServer\V14\IRM\CertificationServerRedirection]
-"https://069afcc4-8591-4dfa-83cd-cd906193f67d.rms.na.aadrm.com"="http://pdho-arms1.rlicorp.com"
+"https://069afcc4-8591-4dfa-83cd-cd906193f67d.rms.na.aadrm.com"="http://arms.rlicorp.com"
 
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ExchangeServer\V14\IRM\LicenseServerRedirection]
-"https://069afcc4-8591-4dfa-83cd-cd906193f67d.rms.na.aadrm.com"="http://pdho-arms1.rlicorp.com"
+"https://069afcc4-8591-4dfa-83cd-cd906193f67d.rms.na.aadrm.com"="http://arms.rlicorp.com"
 
